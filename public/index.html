@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>rate-limiter://demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0d0a;
+    --bg-panel: #0d110e;
+    --bg-inset: #090c09;
+    --border: #26302a;
+    --border-bright: #3d4a41;
+    --fg: #d7e4d9;
+    --fg-dim: #6f8074;
+    --fg-dimmer: #4a564d;
+    --allow: #3ddc84;
+    --allow-dim: rgba(61, 220, 132, 0.14);
+    --block: #ff5f3d;
+    --block-dim: rgba(255, 95, 61, 0.14);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 13px;
+  }
+
+  body {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    height: 100vh;
+  }
+
+  .hairline { border-color: var(--border); }
+
+  /* ---------- header ---------- */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .title {
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--fg);
+  }
+  .title .cursor {
+    display: inline-block;
+    width: 8px;
+    height: 1em;
+    background: var(--allow);
+    margin-left: 2px;
+    vertical-align: -2px;
+    animation: blink 1.1s steps(1) infinite;
+  }
+
+  .strategy-toggle {
+    display: flex;
+    border: 1px solid var(--border-bright);
+  }
+  .strategy-toggle button {
+    font-family: inherit;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    padding: 7px 16px;
+    background: transparent;
+    color: var(--fg-dim);
+    border: none;
+    cursor: pointer;
+  }
+  .strategy-toggle button + button { border-left: 1px solid var(--border-bright); }
+  .strategy-toggle button.active {
+    background: var(--fg);
+    color: var(--bg);
+  }
+  .strategy-toggle button:hover:not(.active) {
+    color: var(--fg);
+    background: var(--bg-inset);
+  }
+
+  .clock {
+    color: var(--fg-dimmer);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+  }
+
+  /* ---------- main ---------- */
+  main {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    min-height: 0;
+  }
+
+  .panel {
+    border-right: 1px solid var(--border);
+    padding: 16px 18px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .panel-label {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--fg-dimmer);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .panel-sub {
+    font-size: 12px;
+    color: var(--fg-dim);
+    margin-bottom: 18px;
+    line-height: 1.5;
+  }
+  .panel-sub b { color: var(--fg); font-weight: 500; }
+
+  /* -- bucket meter -- */
+  #bucketViz {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 18px;
+    padding-bottom: 8px;
+  }
+  .meter-track {
+    width: 64px;
+    height: 100%;
+    max-height: 260px;
+    border: 1px solid var(--border-bright);
+    background: var(--bg-inset);
+    display: flex;
+    align-items: flex-end;
+    position: relative;
+  }
+  .meter-fill {
+    width: 100%;
+    background: var(--allow-dim);
+    border-top: 2px solid var(--allow);
+    transition: height 100ms linear;
+  }
+  .meter-readout {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--fg);
+    align-self: center;
+  }
+  .meter-readout small {
+    display: block;
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--fg-dimmer);
+    letter-spacing: 0.1em;
+    margin-top: 4px;
+  }
+
+  /* -- sliding timeline -- */
+  #slidingViz {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 14px;
+  }
+  .timeline-readout {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--fg);
+  }
+  .timeline-readout small {
+    display: block;
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--fg-dimmer);
+    letter-spacing: 0.1em;
+    margin-top: 4px;
+  }
+  .timeline-track {
+    position: relative;
+    height: 40px;
+    border: 1px solid var(--border-bright);
+    background: var(--bg-inset);
+    overflow: hidden;
+  }
+  .timeline-tick {
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    width: 3px;
+    background: var(--allow);
+    opacity: 0.85;
+  }
+  .timeline-legend {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--fg-dimmer);
+    letter-spacing: 0.06em;
+  }
+
+  .hidden { display: none !important; }
+
+  /* -- log panel -- */
+  .log-panel {
+    border-right: none;
+    padding: 0;
+  }
+  .log-panel .panel-label {
+    padding: 16px 18px 12px;
+    margin-bottom: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  #log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .log-line {
+    display: flex;
+    gap: 14px;
+    padding: 2px 6px;
+    white-space: nowrap;
+  }
+  .log-line .t { color: var(--fg-dimmer); }
+  .log-line .status { width: 34px; }
+  .log-line .verdict { width: 68px; font-weight: 600; letter-spacing: 0.04em; }
+  .log-line .rem { color: var(--fg-dim); }
+  .log-line.allow .status, .log-line.allow .verdict { color: var(--allow); }
+  .log-line.block .status, .log-line.block .verdict { color: var(--block); }
+
+  @keyframes flashAllow {
+    from { background: var(--allow-dim); }
+    to { background: transparent; }
+  }
+  @keyframes flashBlock {
+    from { background: var(--block-dim); }
+    to { background: transparent; }
+  }
+  .log-line.allow { animation: flashAllow 700ms ease-out; }
+  .log-line.block { animation: flashBlock 700ms ease-out; }
+
+  .log-empty {
+    color: var(--fg-dimmer);
+    padding: 4px 6px;
+  }
+
+  /* ---------- footer ---------- */
+  footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-top: 1px solid var(--border);
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .tallies {
+    display: flex;
+    gap: 28px;
+  }
+  .tally {
+    display: flex;
+    flex-direction: column;
+  }
+  .tally .n {
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .tally.allow .n { color: var(--allow); }
+  .tally.block .n { color: var(--block); }
+  .tally .label {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--fg-dimmer);
+    margin-top: 4px;
+  }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+  }
+  button.fire {
+    font-family: inherit;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    padding: 12px 20px;
+    background: transparent;
+    border: 1px solid var(--allow);
+    color: var(--allow);
+    cursor: pointer;
+  }
+  button.fire:hover:not(:disabled) {
+    background: var(--allow);
+    color: var(--bg);
+  }
+  button.fire.burst {
+    border-color: var(--fg);
+    color: var(--fg);
+  }
+  button.fire.burst:hover:not(:disabled) {
+    background: var(--fg);
+    color: var(--bg);
+  }
+  button.fire:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  @keyframes blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+  }
+
+  @media (max-width: 680px) {
+    main { grid-template-columns: 1fr; grid-template-rows: auto auto; }
+    .panel { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title">RATE-LIMITER://demo<span class="cursor"></span></div>
+  <div class="strategy-toggle">
+    <button data-strategy="bucket" class="active">TOKEN BUCKET</button>
+    <button data-strategy="sliding">SLIDING WINDOW</button>
+  </div>
+  <div class="clock" id="clock">--:--:--</div>
+</header>
+
+<main>
+  <div class="panel" id="statePanel">
+    <div class="panel-label">Algorithm state</div>
+    <div class="panel-sub" id="paramsLine"></div>
+
+    <div id="bucketViz">
+      <div class="meter-track">
+        <div class="meter-fill" id="meterFill" style="height: 100%;"></div>
+      </div>
+      <div class="meter-readout">
+        <span id="meterValue">10</span> / 10
+        <small>TOKENS</small>
+      </div>
+    </div>
+
+    <div id="slidingViz" class="hidden">
+      <div class="timeline-readout">
+        <span id="windowCount">0</span> / 10
+        <small>REQUESTS IN WINDOW</small>
+      </div>
+      <div class="timeline-track" id="timelineTrack"></div>
+      <div class="timeline-legend">
+        <span>-10s</span>
+        <span>now</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel log-panel">
+    <div class="panel-label">Request log</div>
+    <div id="log"><div class="log-empty">// waiting for first hit...</div></div>
+  </div>
+</main>
+
+<footer>
+  <div class="tallies">
+    <div class="tally allow"><div class="n" id="allowedCount">0</div><div class="label">ALLOWED</div></div>
+    <div class="tally block"><div class="n" id="blockedCount">0</div><div class="label">BLOCKED</div></div>
+  </div>
+  <div class="actions">
+    <button class="fire" id="fireOne">FIRE</button>
+    <button class="fire burst" id="fireBurst">FIRE ×20 (BURST)</button>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // Must mirror the limiter config in src/server.js.
+  const BUCKET_CAPACITY = 10;
+  const BUCKET_REFILL_RATE = 1;   // tokens/sec
+  const WINDOW_LIMIT = 10;
+  const WINDOW_MS = 10000;
+
+  const demoKey = 'ui-' + Math.random().toString(36).slice(2, 10);
+
+  let strategy = 'bucket';
+  let allowed = 0;
+  let blocked = 0;
+
+  // Client-side mirrors used purely to drive the live visualization between
+  // server responses; every hit response re-syncs them to ground truth.
+  const bucketState = { remaining: BUCKET_CAPACITY, lastUpdate: Date.now() };
+  const slidingTimestamps = []; // client-observed timestamps of allowed hits
+
+  const els = {
+    strategyButtons: document.querySelectorAll('.strategy-toggle button'),
+    paramsLine: document.getElementById('paramsLine'),
+    bucketViz: document.getElementById('bucketViz'),
+    slidingViz: document.getElementById('slidingViz'),
+    meterFill: document.getElementById('meterFill'),
+    meterValue: document.getElementById('meterValue'),
+    windowCount: document.getElementById('windowCount'),
+    timelineTrack: document.getElementById('timelineTrack'),
+    log: document.getElementById('log'),
+    allowedCount: document.getElementById('allowedCount'),
+    blockedCount: document.getElementById('blockedCount'),
+    fireOne: document.getElementById('fireOne'),
+    fireBurst: document.getElementById('fireBurst'),
+    clock: document.getElementById('clock'),
+  };
+
+  function setStrategy(next) {
+    strategy = next;
+    els.strategyButtons.forEach((b) => b.classList.toggle('active', b.dataset.strategy === next));
+    els.bucketViz.classList.toggle('hidden', next !== 'bucket');
+    els.slidingViz.classList.toggle('hidden', next !== 'sliding');
+    els.paramsLine.innerHTML = next === 'bucket'
+      ? 'capacity <b>' + BUCKET_CAPACITY + '</b>, refill <b>' + BUCKET_REFILL_RATE + '/s</b> &mdash; idle time banks tokens, so saved-up capacity can be spent in one burst.'
+      : 'limit <b>' + WINDOW_LIMIT + '</b> per <b>' + (WINDOW_MS / 1000) + 's</b> window &mdash; only requests inside the trailing window count, no banking, no burst.';
+  }
+
+  els.strategyButtons.forEach((btn) => {
+    btn.addEventListener('click', () => setStrategy(btn.dataset.strategy));
+  });
+
+  function fmtTime(d) {
+    const pad = (n, l) => String(n).padStart(l, '0');
+    return pad(d.getHours(), 2) + ':' + pad(d.getMinutes(), 2) + ':' + pad(d.getSeconds(), 2) + '.' + pad(d.getMilliseconds(), 3);
+  }
+
+  function appendLog(strategyUsed, status, allowedFlag, remaining) {
+    if (els.log.querySelector('.log-empty')) els.log.innerHTML = '';
+    const line = document.createElement('div');
+    line.className = 'log-line ' + (allowedFlag ? 'allow' : 'block');
+    line.innerHTML =
+      '<span class="t">' + fmtTime(new Date()) + '</span>' +
+      '<span class="status">' + status + '</span>' +
+      '<span class="verdict">' + (allowedFlag ? 'ALLOW' : 'BLOCK') + '</span>' +
+      '<span class="rem">rem ' + remaining + '</span>' +
+      '<span class="rem">[' + strategyUsed + ']</span>';
+    els.log.appendChild(line);
+    while (els.log.children.length > 300) els.log.removeChild(els.log.firstChild);
+    els.log.scrollTop = els.log.scrollHeight;
+  }
+
+  function renderBucketMeter(displayTokens) {
+    const clamped = Math.max(0, Math.min(BUCKET_CAPACITY, displayTokens));
+    els.meterFill.style.height = (clamped / BUCKET_CAPACITY * 100) + '%';
+    els.meterValue.textContent = Math.floor(clamped);
+  }
+
+  function renderTimeline() {
+    const now = Date.now();
+    while (slidingTimestamps.length && now - slidingTimestamps[0] > WINDOW_MS) {
+      slidingTimestamps.shift();
+    }
+    els.windowCount.textContent = slidingTimestamps.length;
+    els.timelineTrack.innerHTML = '';
+    const trackWidth = els.timelineTrack.clientWidth;
+    slidingTimestamps.forEach((ts) => {
+      const age = now - ts;
+      const fracFromLeft = 1 - age / WINDOW_MS; // 0 = left edge (oldest), 1 = right edge (now)
+      const tick = document.createElement('div');
+      tick.className = 'timeline-tick';
+      tick.style.left = Math.max(0, Math.min(trackWidth - 3, fracFromLeft * trackWidth)) + 'px';
+      els.timelineTrack.appendChild(tick);
+    });
+  }
+
+  // Continuous local animation between server hits: bucket refill creep,
+  // and timeline ticks sliding toward the window edge.
+  setInterval(() => {
+    if (strategy === 'bucket') {
+      const now = Date.now();
+      const elapsedSec = (now - bucketState.lastUpdate) / 1000;
+      const projected = Math.min(BUCKET_CAPACITY, bucketState.remaining + elapsedSec * BUCKET_REFILL_RATE);
+      renderBucketMeter(projected);
+    } else {
+      renderTimeline();
+    }
+  }, 100);
+
+  setInterval(() => { els.clock.textContent = fmtTime(new Date()).slice(0, 8); }, 500);
+  els.clock.textContent = fmtTime(new Date()).slice(0, 8);
+
+  async function hit() {
+    const usedStrategy = strategy;
+    const now = Date.now();
+    const res = await fetch('/api/hit?strategy=' + usedStrategy + '&key=' + encodeURIComponent(demoKey), { method: 'POST' });
+    const body = await res.json();
+
+    if (body.allowed) allowed++; else blocked++;
+    els.allowedCount.textContent = allowed;
+    els.blockedCount.textContent = blocked;
+
+    appendLog(usedStrategy, res.status, body.allowed, body.remaining);
+
+    if (usedStrategy === 'bucket') {
+      bucketState.remaining = body.remaining;
+      bucketState.lastUpdate = now;
+      renderBucketMeter(body.remaining);
+    } else {
+      if (body.allowed) slidingTimestamps.push(now);
+      renderTimeline();
+    }
+  }
+
+  async function fireBurst(count) {
+    els.fireOne.disabled = true;
+    els.fireBurst.disabled = true;
+    try {
+      await Promise.all(Array.from({ length: count }, () => hit()));
+    } finally {
+      els.fireOne.disabled = false;
+      els.fireBurst.disabled = false;
+    }
+  }
+
+  els.fireOne.addEventListener('click', () => hit());
+  els.fireBurst.addEventListener('click', () => fireBurst(20));
+
+  setStrategy('bucket');
+  renderBucketMeter(BUCKET_CAPACITY);
+  renderTimeline();
+})();
+</script>
+</body>
+</html>
