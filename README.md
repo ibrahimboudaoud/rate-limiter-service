@@ -6,11 +6,11 @@
 
 A rate limiter built from scratch because I was tired of being able to describe token bucket in an interview but not actually having written one.
 
-Two real algorithms, a tiny API in front of them, and a demo that looks less like a form and more like something you'd actually want to stare at during an incident.
+Two algorithms, a tiny API in front of them, and a demo that's nice to look at during an incident.
 
 ## Why this exists
 
-Rate limiting comes up constantly in system design interviews and I noticed I could talk about it fine but I'd never once implemented it. That gap bugged me more than it should have, so this is me closing it. No framework doing the hard part for me, no `npm install some-rate-limiter`. Just the two algorithms, written by hand, tested, and then a UI that actually shows you what's happening inside instead of just spitting out allowed/blocked.
+Rate limiting comes up constantly in system design interviews and I noticed I could talk about it fine but I'd never once implemented it. That gap bugged me more than it should have, so this is me closing it. No framework doing the hard part for me, no `npm install some-rate-limiter`. Just the two algorithms, written and tested, and then a UI that actually shows what's happening inside (as opposed to just outputting "allowed" or the dreaded "blocked").
 
 ## What's in here
 
@@ -18,13 +18,13 @@ Rate limiting comes up constantly in system design interviews and I noticed I co
 
 **Sliding window log** — every key keeps a log of recent request timestamps. Old ones age out of the window as time passes. No banking, no bursts, just a hard smooth cap.
 
-Same problem, genuinely different behavior, and the demo is built specifically to make that difference visible instead of just telling you about it in a paragraph like this one.
+Same problem, genuinely different behavior, and the demo is built specifically to make that difference visible instead of just telling you about it in a paragraph (like this one).
 
 ## The demo
 
 Toggle between strategies and watch the internals live: the bucket panel shows a meter draining and refilling, the sliding window panel shows a timeline of timestamps aging out. Hit FIRE for a single request or FIRE x20 to burst it and watch the algorithms actually disagree with each other about what should happen.
 
-It's styled like a terminal/systems dashboard on purpose. Monospace, near-black, hard edges, green for allow, red for block. No gradients, no rounded cards, because a demo about watching a system's internals shouldn't look like a landing page.
+It's styled like a terminal/systems dashboard on purpose. Monospace, near-black, hard edges, green for allow, red for block.
 
 ## Running it locally
 
@@ -57,4 +57,4 @@ Node, Express, vanilla JS/HTML/CSS on the frontend. No database. No auth. Delibe
 
 ## What I actually learned building this
 
-The real "aha" wasn't the code, it was watching the two algorithms handle a repeated burst differently. Fire 20 requests fast on either strategy and 10 get through, 10 get blocked, same as you'd expect. But fire another burst immediately after and they diverge: sliding window blocks the whole thing outright since nothing ages out that fast, while token bucket blocks it too but for a different reason, a burst under a second can't accrue a whole token back. Same surface behavior, completely different reason underneath. That's the kind of thing you don't actually get until you've built it.
+For the visual learners! Inspired by sites like VisuAlgo, I wanted to watch the two algorithms handle a repeated burst differently to clearly understand the difference. Fire 20 requests fast on either strategy and 10 get through, 10 get blocked, same as you'd expect. But fire another burst immediately after and they diverge: sliding window blocks the whole thing outright since nothing ages out that fast, while token bucket blocks it too but for a different reason, a burst under a second can't accrue a whole token back. Though same on the surface, very different mechanisms underneath. 
